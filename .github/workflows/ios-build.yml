@@ -1,38 +1,41 @@
-name: Build iOS App
+name: Build iOS App (Flet)
 
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch: # Isse aap GitHub se manually bhi build start kar payenge
 
 jobs:
   build-ios:
     runs-on: macos-latest
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install cython kivy-ios
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Build Kivy toolchain for iOS
-      run: |
-        toolchain build python3 kivy
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
 
-    - name: Create Xcode Project
-      run: |
-        toolchain create MarketAlert .
+      - name: Build iOS App (Xcode Project)
+        # 'yes |' lagaya hai taaki EOFError na aaye
+        # '--no-codesign' isliye hai kyunki bina paid Apple Developer account ke direct .ipa sign nahi hoti
+        run: yes | flet build ipa --no-codesign --verbose
 
-    - name: Upload Xcode Project as Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ios-xcode-project
-        path: marketalert-ios/
-        
+      - name: Upload iOS Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-files
+          path: build/
+          
