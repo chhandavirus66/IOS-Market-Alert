@@ -1,62 +1,83 @@
-from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
-from kivy.uix.label import Label
-from kivy.clock import Clock
+import flet as ft
+import time
 import broker_api
 import instruments
 
-class MarketAlertApp(App):
-    def build(self):
-        self.layout = BoxLayout(orientation='vertical', padding=20, spacing=10)
-        
-        self.status_label = Label(text="Market Alert App (iOS)", font_size='24sp')
-        self.layout.add_widget(self.status_label)
-        
-        self.log_label = Label(text="Press Start to monitor...", font_size='16sp')
-        self.layout.add_widget(self.log_label)
-        
-        self.start_btn = Button(text="Start Monitoring", background_color=(0, 1, 0, 1))
-        self.start_btn.bind(on_press=self.start_alerts)
-        self.layout.add_widget(self.start_btn)
-        
-        self.stop_btn = Button(text="Stop", background_color=(1, 0, 0, 1), disabled=True)
-        self.stop_btn.bind(on_press=self.stop_alerts)
-        self.layout.add_widget(self.stop_btn)
-        
-        self.monitoring = False
-        return self.layout
+def main(page: ft.Page):
+    page.title = "Market Alert (iOS)"
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.window_width = 400
+    page.window_height = 800
 
-    def start_alerts(self, instance):
-        self.monitoring = True
-        self.start_btn.disabled = True
-        self.stop_btn.disabled = False
-        self.status_label.text = "Monitoring Active..."
-        # Har 5 second mein market check karega (Jab app open hogi)
-        Clock.schedule_interval(self.check_market, 5)
+    status_text = ft.Text("App Ready. Press Start.", size=20, weight=ft.FontWeight.BOLD)
+    
+    # Naya Feature: Source select karne ke liye Dropdown
+    source_dropdown = ft.Dropdown(
+        label="Select Data Source",
+        options=[
+            ft.dropdown.Option("Yahoo Finance"),
+            ft.dropdown.Option("Custom Broker API"),
+        ],
+        value="Yahoo Finance",
+        width=250
+    )
 
-    def stop_alerts(self, instance):
-        self.monitoring = False
-        self.start_btn.disabled = False
-        self.stop_btn.disabled = True
-        self.status_label.text = "Monitoring Stopped."
-        Clock.unschedule(self.check_market)
+    log_view = ft.ListView(expand=True, spacing=10, padding=20)
+    is_monitoring = False
 
-    def check_market(self, dt):
-        if not self.monitoring:
-            return False
+    def monitor_market():
+        while is_monitoring:
+            logs = []
+            selected_source = source_dropdown.value
             
-        logs = []
-        for symbol, data in instruments.MARKET_INSTRUMENTS.items():
-            price = broker_api.get_live_price(symbol)
-            target = data["target_price"]
-            
-            if price >= target:
-                logs.append(f"ALERT: {symbol} crossed {target}! (Current: {price})")
-            else:
-                logs.append(f"{symbol}: {price}")
+            for symbol, data in instruments.MARKET_INSTRUMENTS.items():
+                price = broker_api.get_live_price(symbol, selected_source)
+                target = data["target_price"]
                 
-        self.log_label.text = "\n".join(logs)
+                if price is None:
+                    logs.append(ft.Text(f"⚠️ {symbol}: Data fetch error (Check Internet)", color=ft.colors.ORANGE))
+                    continue
+                
+                if price >= target:
+                    logs.append(ft.Text(f"🚨 ALERT: {symbol} crossed {target}! (Current: ₹{price})", color=ft.colors.RED, weight=ft.FontWeight.BOLD))
+                else:
+                    logs.append(ft.Text(f"✅ {symbol}: ₹{price} (Target: ₹{target})", color=ft.colors.GREEN))
+            
+            log_view.controls = logs
+            page.update()
+            time.sleep(5) # 5 seconds delay
 
-if __name__ == '__main__':
-    MarketAlertApp().run()
+    def start_click(e):
+        nonlocal is_monitoring
+        is_monitoring = True
+        status_text.value = f"Monitoring via {source_dropdown.value}..."
+        status_text.color = ft.colors.GREEN
+        start_btn.disabled = True
+        stop_btn.disabled = False
+        source_dropdown.disabled = True # Running state mein source change karna disable kar diya
+        page.update()
+        page.run_task(monitor_market)
+
+    def stop_click(e):
+        nonlocal is_monitoring
+        is_monitoring = False
+        status_text.value = "Monitoring Stopped."
+        status_text.color = ft.colors.RED
+        start_btn.disabled = False
+        stop_btn.disabled = True
+        source_dropdown.disabled = False # Stop hone par wapas enable ho jayega
+        page.update()
+
+    start_btn = ft.ElevatedButton("Start Monitoring", on_click=start_click, bgcolor=ft.colors.GREEN, color=ft.colors.WHITE)
+    stop_btn = ft.ElevatedButton("Stop", on_click=stop_click, bgcolor=ft.colors.RED, color=ft.colors.WHITE, disabled=True)
+
+    page.add(
+        status_text,
+        source_dropdown, # Dropdown ko screen par add kiya gaya
+        ft.Row([start_btn, stop_btn], alignment=ft.MainAxisAlignment.CENTER),
+        ft.Divider(),
+        log_view
+    )
+
+ft.app(target=main)
