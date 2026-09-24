@@ -3,7 +3,7 @@ name: Build iOS App (Flet)
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Isse aap GitHub se manually bhi build start kar payenge
+  workflow_dispatch:
 
 jobs:
   build-ios:
@@ -29,9 +29,7 @@ jobs:
           channel: 'stable'
 
       - name: Build iOS App (Xcode Project)
-        # 'yes |' lagaya hai taaki EOFError na aaye
-        # '--no-codesign' isliye hai kyunki bina paid Apple Developer account ke direct .ipa sign nahi hoti
-        run: yes | flet build ipa --no-codesign --verbose
+        run: yes | flet build ipa --verbose
 
       - name: Upload iOS Build Artifact
         uses: actions/upload-artifact@v4
