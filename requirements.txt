@@ -1,2 +1,3 @@
-kivy==2.3.0
+flet==0.21.2
 requests
+yfinance
